@@ -1,26 +1,25 @@
 import streamlit as st
-import cv2
-import threading
-import speech_recognition as sr
 import pyaudio
 import wave
+import io
+import threading
 import time
+import speech_recognition as sr
 
-st.title("AI Interviewer")
-
-# Initialize the recognizer
-recognizer = sr.Recognizer()
-
-# Function to get input device information
 def get_input_device_info():
     audio = pyaudio.PyAudio()
+    devices = []
     for i in range(audio.get_device_count()):
         info = audio.get_device_info_by_index(i)
-        print(f"Device {i}: {info['name']} - {info['maxInputChannels']} input channels")
+        devices.append({
+            "index": i,
+            "name": info['name'],
+            "channels": info['maxInputChannels']
+        })
     audio.terminate()
+    return devices
 
-# Function to record audio
-def record_audio(frames, sample_rate=44100, chunk=4096, channels=1, duration=5):
+def record_audio(file, sample_rate=44100, chunk=4096, channels=1, duration=5):
     audio = pyaudio.PyAudio()
     try:
         stream = audio.open(format=pyaudio.paInt16,
@@ -31,36 +30,27 @@ def record_audio(frames, sample_rate=44100, chunk=4096, channels=1, duration=5):
     except OSError as e:
         audio.terminate()
         raise RuntimeError(f"Could not open audio stream: {e}")
+
+    st.write("Recording audio...")
+    frames = []
+    start_time = time.time()
     
-    print("Recording audio...")
-    try:
-        while not stop_event.is_set():
-            start_time = time.time()
-            chunk_frames = []
-            while time.time() - start_time < duration:
-                try:
-                    data = stream.read(chunk, exception_on_overflow=False)
-                    chunk_frames.append(data)
-                except IOError as e:
-                    print(f"Error recording: {e}")
-                    continue
-                if stop_event.is_set():
-                    break
-            frames.append(b''.join(chunk_frames))
-            threading.Thread(target=save_and_transcribe, args=(chunk_frames, sample_rate)).start()
-    except Exception as e:
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
-        raise RuntimeError(f"Error during recording: {e}")
-
-    print("Finished recording audio.")
-
+    while time.time() - start_time < duration:
+        try:
+            data = stream.read(chunk, exception_on_overflow=False)
+            frames.append(data)
+        except IOError as e:
+            st.write(f"Error recording: {e}")
+            continue
+    
+    st.write("Finished recording audio.")
+    
     stream.stop_stream()
     stream.close()
     audio.terminate()
+    
+    save_and_transcribe(frames, sample_rate, file)
 
-# Function to save and transcribe audio chunk
 def save_and_transcribe(frames, sample_rate, filename="output_chunk.wav"):
     wf = wave.open(filename, 'wb')
     wf.setnchannels(1)
@@ -70,9 +60,8 @@ def save_and_transcribe(frames, sample_rate, filename="output_chunk.wav"):
     wf.close()
     
     text = speech_to_text(filename)
-    st.title("Transcribed text:", text)
+    st.write("Transcribed text:", text)
 
-# Function to transcribe speech from an audio file
 def speech_to_text(audio_file):
     recognizer = sr.Recognizer()
     with sr.AudioFile(audio_file) as source:
@@ -82,34 +71,28 @@ def speech_to_text(audio_file):
         text = recognizer.recognize_google(audio)
         return text
     except sr.UnknownValueError:
-        st.title("Speech recognition could not understand the audio")
+        return "Speech recognition could not understand the audio"
     except sr.RequestError as e:
         return f"Could not request results from speech recognition service; {e}"
 
-# Function to handle video capture
-def capture_video():
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        cv2.imshow('Live Video', frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            stop_event.set()  # Signal the audio recording thread to stop
-            break
-    cap.release()
-    cv2.destroyAllWindows()
+def main():
+    st.title('Microphone Selection and Audio Recording')
 
-# Main execution
-get_input_device_info()  # Check available input devices and their properties
+    # Display microphone options
+    devices = get_input_device_info()
+    mic_options = {device['name']: device['index'] for device in devices}
+    
+    mic_selected = st.selectbox('Select a Microphone', options=list(mic_options.keys()))
+    mic_index = mic_options[mic_selected]
 
-# Record for the length of the video
-frames = []
-stop_event = threading.Event()
-audio_thread = threading.Thread(target=record_audio, args=(frames,))
-audio_thread.start()
+    st.write('Selected Microphone Index:', mic_index)
 
-capture_video()  # Start capturing video
+    # Record audio
+    if st.button('Start Recording'):
+        st.write("Recording...")
+        audio_file = io.BytesIO()  # Use in-memory file
+        record_audio(audio_file, duration=5)
+        st.write("Audio recorded and saved.")
 
-audio_thread.join()  # Wait for the audio recording to finish
-
+if __name__ == "__main__":
+    main()
