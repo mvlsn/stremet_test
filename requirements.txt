@@ -1,0 +1,9 @@
+setuptools
+anthropic
+google-cloud-speech
+moviepy
+ffmpeg
+opencv-python
+anthropic
+SpeechRecognition
+pyaudio
