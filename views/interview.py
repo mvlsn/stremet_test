@@ -1,22 +1,12 @@
 import streamlit as st
-import anthropic
-import speech_recognition as sr
-import pyaudio
-import wave
-import numpy as np
-import cv2 as cv
-import threading
-import time
-import moviepy.editor as mp
-
-st.title("AI Interviewer")
-
 import cv2
 import threading
 import speech_recognition as sr
 import pyaudio
 import wave
 import time
+
+st.title("AI Interviewer")
 
 # Initialize the recognizer
 recognizer = sr.Recognizer()
