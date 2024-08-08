@@ -7,3 +7,4 @@ opencv-python
 anthropic
 SpeechRecognition
 pyaudio
+streamlit-webrtc
